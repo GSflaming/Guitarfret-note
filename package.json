@@ -1,0 +1,26 @@
+{
+  "name": "fret-note-studio",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "dev": "node scripts/dev.mjs",
+    "worker:check": "node scripts/wrangler.mjs --dry-run",
+    "deploy": "node scripts/deploy.mjs"
+  },
+  "devDependencies": {
+    "linkedom": "0.18.12",
+    "wrangler": "4.150.0"
+  },
+  "engines": {
+    "node": ">=22.13.0 || >=24"
+  },
+  "description": "A minimal guitar fretboard for selecting notes, exploring chords and recording music demonstrations.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GSflaming/Guitarfret-note.git"
+  },
+  "homepage": "https://gsflaming.github.io/Guitarfret-note/"
+}
