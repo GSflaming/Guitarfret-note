@@ -31,26 +31,8 @@ npm run deploy
 
 将 `dist/` 全部文件作为站点根目录上传即可。主机需通过 HTTP(S) 提供 HTML、CSS 和 JavaScript，`.mjs` 返回 JavaScript MIME 类型。静态应用无需重写规则。构建命令为 `npm ci && npm test && npm run build`。
 
-## 本地预览
+## 开发与验证
 
-```sh
-npm ci
-npm run dev
-```
+开发环境搭建、预览与测试命令见[贡献指南](../CONTRIBUTING.md#搭建开发环境)。普通用户直接访问[在线工具](https://gsflaming.github.io/Guitarfret-note/)，无需运行开发服务。
 
-默认端口 4173。自定义端口示例：
-
-macOS／Linux：
-
-```sh
-PORT=4175 npm run dev
-```
-
-Windows PowerShell：
-
-```powershell
-$env:PORT = "4175"
-npm run dev
-```
-
-更换本地／Pages／Cloudflare 地址后，浏览器保存的场景不会跨域同步。录屏模式仅隐藏工具，录制视频请使用系统录屏。
+更换开发预览／Pages／Cloudflare 地址后，浏览器保存的场景不会跨域同步。录屏模式仅隐藏工具，录制视频请使用系统录屏。
