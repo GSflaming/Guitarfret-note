@@ -27,3 +27,6 @@
 @keyframes tools-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:640px){:root{--dock-bottom:max(12px,env(safe-area-inset-bottom));--dock-height:56px;--tools-right:max(16px,env(safe-area-inset-right))}.tools-toggle{width:56px;height:56px}.tool-dock{grid-template-columns:repeat(3,64px);gap:12px;bottom:calc(var(--dock-bottom) + var(--dock-height) + 16px)}.dock-button{width:64px;height:64px}.controls-panel{padding:20px;bottom:calc(var(--dock-bottom) + var(--dock-height) + 16px)}#surface{padding-bottom:80px}}
 @media(max-height:480px){:root{--dock-bottom:8px;--dock-height:56px}.tools-toggle{width:56px;height:56px}.tool-dock{grid-template-columns:repeat(3,56px);gap:10px}.dock-button{width:56px;height:56px;font-size:10px;gap:4px}.dock-button svg{width:20px;height:20px}#board-anchor{height:260px}#surface{padding-bottom:64px}}
+
+.language-picker{grid-column:1/-1;display:flex;align-items:center;gap:10px;background:var(--panel);border-radius:10px;padding:6px 10px;font-size:12px;min-height:44px}.language-picker>span{flex:none}.language-picker select{font-size:12px;min-width:0;padding:7px}
+html[lang=en] .dock-button{font-size:10px}html[lang=en] .controls-panel .toggle-row{gap:14px}html[lang=en] .controls-panel .button-row{flex-wrap:wrap}

@@ -8,9 +8,9 @@
 
 [![Check and publish](https://github.com/GSflaming/Guitarfret-note/actions/workflows/check-and-publish.yml/badge.svg)](https://github.com/GSflaming/Guitarfret-note/actions/workflows/check-and-publish.yml)
 
-![C 大三和弦指板与展开后的圆形工具菜单](docs/images/overview.png)
+![C 大三和弦指板与展开后的圆形工具菜单](docs/images/overview.gif)
 
-指板是主画面，右下角白色「工具」按钮可展开或收起功能。
+指板是主画面，右下角白色「工具」按钮可展开或收起功能。界面支持中文和英文，首次根据浏览器语言选择；在展开的菜单底部切换「界面语言」，设置会保留。
 
 ## 可以做什么
 
@@ -20,17 +20,17 @@
 - 平移、缩放、品位取景、跟随鼠标，以及浅色／深色主题。
 - 标准与多种开放调弦、自定义调弦；通过弦／品或音名输入音符。
 - 保存场景；录屏模式隐藏工具，让指板保持干净。
-- 自动识别 Windows／macOS，显示对应快捷键；也能手动切换提示。
+- 中文／英文完整界面，可自动选择或手动切换；Windows／macOS 快捷键提示分别适配。
 
 录屏模式仅隐藏工具，不会自行录制视频。声音由浏览器合成拨弦，并非吉他采样。当前版本专注指板演示，不包含 PDF／AI 识谱。
 
 ## 看图上手
 
-直接打开上方「在线使用」链接即可，无需下载代码或启动开发服务。以下截图来自当前版本，示例使用固定的弦／品数据。
+直接打开上方「在线使用」链接即可，无需下载代码或启动开发服务。以下 GIF 直接录制当前界面的实际变化，使用固定示例；GIF 不包含声音。
 
 ### 选音与和弦识别
 
-![选音面板：五个所选位置与自动识别的 C 大三和弦](docs/images/selection.png)
+![选音面板：五个所选位置与自动识别的 C 大三和弦](docs/images/selection.gif)
 
 点击指板添加音符，再点一次取消；左侧独立圆点选择空弦。图上从上到下为一弦至六弦。在「工具 → 选音」中可以查看已选位置、和弦名称，或切换为「单音试听」。
 
@@ -38,21 +38,21 @@
 
 ### 同时弹响与琶音
 
-![播放面板：同时弹响、琶音、110 BPM 速度及低音到高音顺序](docs/images/playback.png)
+![播放面板：同时弹响、琶音、110 BPM 速度及低音到高音顺序](docs/images/playback.gif)
 
-选好音符后按空格同时弹响，按 A 播放琶音。打开「工具 → 播放」可调整速度和顺序；图中为 110 BPM、从低音到高音，每两个音相隔八分音符。播放时可点「停止」中断。
+选好音符后按空格同时弹响，按 A 播放琶音。打开「工具 → 播放」可调整速度和顺序；演示为 110 BPM、从低音到高音，每两个音相隔八分音符。播放时可点「停止」中断。
 
 ### 调弦与主题
 
-![深色主题下的 Drop D 调弦面板，指板显示三个空弦组成的 D5](docs/images/tuning.png)
+![深色主题下的 Drop D 调弦面板，指板显示三个空弦组成的 D5](docs/images/tuning.gif)
 
-「工具 → 调弦」提供标准调弦、Drop D 等预设，也支持自定义带八度的音高。切换后，音名、和弦和声音都会按新调弦计算。图中 Drop D 将六弦降低到 D2，调弦面板按六弦至一弦排列。
+「工具 → 调弦」提供标准调弦、Drop D 等预设，也支持自定义带八度的音高。切换后，音名、和弦和声音都会按新调弦计算。演示中 Drop D 将六弦降低到 D2，调弦面板按六弦至一弦排列。
 
 浅色／深色主题在「工具 → 外观」切换。同一面板还可设置音名、和弦名、声音与「跟随鼠标」。
 
 ### Windows 与 macOS 快捷键
 
-![Windows 与 macOS 快捷键对照，包括播放、录屏模式、焦点导航和缩放](docs/images/shortcuts.svg)
+![Windows 与 macOS 快捷键对照，包括播放、录屏模式、焦点导航和缩放](docs/images/shortcuts.gif)
 
 展开工具后点击「快捷键」，或按 `?` 打开快捷键表。系统自动识别，浏览器识别不准时也可手动切换。Windows 提示 Ctrl + 滚轮，Mac 提示 ⌘ + 滚轮；触摸板可双指平移和捏合缩放，触屏支持双指操作。
 
@@ -74,6 +74,6 @@
 
 欢迎[反馈问题或提出建议](https://github.com/GSflaming/Guitarfret-note/issues)，也欢迎改进音乐理论、交互、无障碍体验和文档。
 
-提交 Issue 或 Pull Request 前，请阅读[贡献指南](CONTRIBUTING.md)。其中说明了项目范围、开发环境、提交要求、测试方法与审核流程。普通用户直接使用在线工具即可。
+提交 Issue 或 Pull Request 前，请阅读[中文贡献指南](CONTRIBUTING.md)或[English contributing guide](CONTRIBUTING.en.md)。其中说明了项目范围、开发环境、提交要求、测试方法与审核流程。普通用户直接使用在线工具即可。
 
 需要自己部署时，请参考[部署说明](docs/DEPLOYMENT.md)。代码采用 [MIT](LICENSE) 许可证。

@@ -4,10 +4,17 @@ import {clamp,unprojectPoint,wheelIntent,anchoredZoom} from './view.mjs';
 import {identifyChord} from './chords.mjs';
 import {playbackPlan} from './playback.mjs';
 import {mountTools} from './tools.mjs';
+import {mountI18n} from './i18n.mjs';
 import {mountNotice} from './notice.mjs';
 import {mountShortcuts,shortcutAction,canHandleShortcut} from './shortcuts.mjs';
 
 const $=id=>document.getElementById(id);
+let languageStorage;try{languageStorage=window.localStorage;}catch{}
+const languageQuery=typeof location==='undefined'?null:new URL(location.href).searchParams.get('lang');
+const i18n=mountI18n({document,navigator,storage:languageStorage,language:languageQuery});
+const t=(text,values)=>i18n.t(text,values);
+let lastNotice=null;
+function showError(id,message){$(id).dataset.message=message;$(id).textContent=t(message);}
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const STORAGE='fret-note-studio-v1';
 const state={tuning:[...PRESETS.standard.notes],preset:'standard',selected:[],range:[0,12],labels:true,chordNames:true,multi:true,sound:true,tilt:true,theme:'light',uiVersion:2,view:{x:0,y:0,scale:1},tempo:110,direction:'up',inputMode:'position',scenes:[]};
@@ -32,7 +39,7 @@ function validPositions(items){return Array.isArray(items)?items.filter(p=>p&&Nu
 function validScene(scene){return scene&&typeof scene.name==='string'&&typeof scene.id==='string'&&validRange(scene.range)&&Array.isArray(scene.tuning)&&scene.tuning.length===6&&scene.tuning.every(n=>Number.isInteger(n)&&n>=24&&n<=88);}
 function persist(){try{localStorage.setItem(STORAGE,JSON.stringify(state));}catch{storageAvailable=false;toast('浏览器无法保存设置；当前演示仍可继续。');}}
 const notice=mountNotice({document,onDismiss:()=>$('fretboard').focus({preventScroll:true})});
-function toast(message){notice.show(message);}
+function toast(message,values){lastNotice={message,values};notice.show(t(message,values));}
 
 document.documentElement.dataset.theme=state.theme;
 const surface=$('surface'),anchor=$('board-anchor'),poseElement=$('board-pose'),tiltElement=$('board-tilt');
@@ -42,7 +49,8 @@ let C=COLORS[state.theme];
 const canvas=$('fretboard'),ctx=canvas.getContext('2d'),wave=$('wave'),wctx=wave.getContext('2d');
 let size={width:900,height:358},waveSize={width:200,height:63};
 let camera=rangeCamera(...state.range),transition=null,frame=0,lastTime=0,hover=null,keyboard={string:1,fret:0},keyboardFocus=false;
-let vibrations=[],pulses=[],lastPlayed=null,drag=null,moved=false,scheduled=[],audioSources=new Set(),playbackActive=false;
+let vibrations=[],pulses=[],lastPlayed=null,drag=null,moved=false,scheduled=[],audioSources=new Set(),playbackActive=false,playbackLabel=null;
+function refreshPlaybackLabel(){if(playbackLabel)$('playback-status').textContent=t(playbackLabel.message,playbackLabel.values);}
 function layout(){const left=size.width<500?49:65,right=size.width<500?23:32,top=70,bottom=size.height-63;return {left,right: size.width-right,top,bottom,width:size.width-left-right,spacing:(bottom-top)/5};}
 function sx(x){const l=layout();return l.left+(x-camera.left)/(camera.right-camera.left)*l.width;}
 function sy(string){const l=layout();return l.top+(string-1)*l.spacing;}
@@ -64,7 +72,7 @@ function setRange(start,end,animate=true){
   if(!transition)camera=target;updateRange();persist();requestDraw();return true;
 }
 function updateRange(){
-  $('range-start').value=state.range[0];$('range-end').value=state.range[1];$('range-caption').textContent=state.range.join('—')+' 品';
+  $('range-start').value=state.range[0];$('range-end').value=state.range[1];$('range-caption').textContent=t('{start}—{end} 品',{start:state.range[0],end:state.range[1]});
   const target=rangeCamera(...state.range),normal=rangeCamera(0,12);$('zoom-ratio').textContent=((normal.right-normal.left)/(target.right-target.left)).toFixed(1)+'×';
   document.querySelectorAll('[data-range]').forEach(b=>b.classList.toggle('active',b.dataset.range===state.range.join(',')));
 }
@@ -169,10 +177,10 @@ async function playSound(midi){
 function pluck(p,time=performance.now(),withSound=true){
   const midi=midiAt(state.tuning,p.string,p.fret);
   vibrations.push({...p,time});pulses.push({...p,time});lastPlayed={...p,midi,time};
-  $('last-note').textContent=noteName(midi);$('last-octave').textContent=octave(midi);$('last-position').textContent=p.string+' 弦 / '+(p.fret===0?'空弦':p.fret+' 品');$('frequency').textContent=frequency(midi).toFixed(2)+' Hz';
+  $('last-note').textContent=noteName(midi);$('last-octave').textContent=octave(midi);$('last-position').textContent=t('{string} 弦 / {position}',{string:p.string,position:p.fret===0?t('空弦'):t('{fret} 品',{fret:p.fret})});$('frequency').textContent=frequency(midi).toFixed(2)+' Hz';
   if(withSound)playSound(midi);requestDraw();
 }
-function stopPlayback(){audioGeneration++;scheduled.forEach(clearTimeout);scheduled=[];audioSources.forEach(s=>{try{s.stop();}catch{}});audioSources.clear();playbackActive=false;$('stop-playback').disabled=true;$('playback-status').textContent='';}
+function stopPlayback(){audioGeneration++;scheduled.forEach(clearTimeout);scheduled=[];audioSources.forEach(s=>{try{s.stop();}catch{}});audioSources.clear();playbackActive=false;playbackLabel=null;$('stop-playback').disabled=true;$('playback-status').textContent='';}
 async function replay(positions=state.selected,mode='chord'){
   stopPlayback();if(!positions.length)return;vibrations=[];pulses=[];
   const generation=audioGeneration,plan=playbackPlan(positions.slice(0,150),state.tuning,mode,state.tempo,state.direction);
@@ -185,9 +193,9 @@ async function replay(positions=state.selected,mode='chord'){
   if(ready){const gain=1/Math.sqrt(Math.max(1,plan.length/4));plan.forEach(p=>scheduleSound(p.midi,audioTime+p.delay/1000,gain,p.buffer));}
   plan.forEach((p,i)=>scheduled.push(setTimeout(()=>{
     if(generation!==audioGeneration)return;pluck(p,startTime+p.delay,false);
-    $('playback-status').textContent=mode==='chord'?'同时弹响 · '+plan.length+' 个音':'琶音 · '+(i+1)+' / '+plan.length;
+    playbackLabel={message:mode==='chord'?'同时弹响 · {count} 个音':'琶音 · {index} / {count}',values:{index:i+1,count:plan.length}};refreshPlaybackLabel();
   },lead+p.delay)));
-  scheduled.push(setTimeout(()=>{if(generation===audioGeneration){playbackActive=false;$('stop-playback').disabled=true;$('playback-status').textContent='';scheduled=[];}},lead+plan.at(-1).delay+2800));
+  scheduled.push(setTimeout(()=>{if(generation===audioGeneration){playbackActive=false;playbackLabel=null;$('stop-playback').disabled=true;$('playback-status').textContent='';scheduled=[];}},lead+plan.at(-1).delay+2800));
 }
 function selectPosition(p){
   stopPlayback();
@@ -199,25 +207,25 @@ function selectPosition(p){
   keyboard={...p};updateSelection();persist();requestDraw();
 }
 function updateSelection(){
-  const list=$('selected-notes');list.replaceChildren();$('note-count').textContent=String(state.selected.length).padStart(2,'0');$('dock-note-count').textContent=state.selected.length;$('dock-note-count').hidden=!state.selected.length;$('replay').disabled=!state.selected.length;$('arpeggio').disabled=!state.selected.length;updateChord();$('selection-status').textContent='已选择 '+state.selected.length+' 个音符。';
-  if(!state.selected.length){const empty=document.createElement('span');empty.className='empty-state';empty.textContent='你的音符会留在这里。';list.append(empty);return;}
-  state.selected.forEach(p=>{const midi=midiAt(state.tuning,p.string,p.fret),button=document.createElement('button');button.className='note-chip';button.title=p.string+' 弦 '+(p.fret===0?'空弦':p.fret+' 品')+'；点击移除';button.setAttribute('aria-label',fullName(midi)+'，'+p.string+' 弦 '+p.fret+' 品，移除此标记');button.append(document.createTextNode(noteName(midi)));const small=document.createElement('small');small.textContent=p.string+':'+p.fret;const cross=document.createElement('b');cross.textContent='×';button.append(small,cross);button.addEventListener('click',()=>{stopPlayback();state.selected=state.selected.filter(q=>q!==p);updateSelection();persist();requestDraw();});list.append(button);});
+  const list=$('selected-notes');list.replaceChildren();$('note-count').textContent=String(state.selected.length).padStart(2,'0');$('dock-note-count').textContent=state.selected.length;$('dock-note-count').hidden=!state.selected.length;$('replay').disabled=!state.selected.length;$('arpeggio').disabled=!state.selected.length;updateChord();$('selection-status').textContent=t('已选择 {count} 个音符。',{count:state.selected.length});
+  if(!state.selected.length){const empty=document.createElement('span');empty.className='empty-state';empty.textContent=t('你的音符会留在这里。');list.append(empty);return;}
+  state.selected.forEach(p=>{const midi=midiAt(state.tuning,p.string,p.fret),button=document.createElement('button');button.className='note-chip';button.title=t('{string} 弦 {position}；点击移除',{string:p.string,position:p.fret===0?t('空弦'):t('{fret} 品',{fret:p.fret})});button.setAttribute('aria-label',t('{note}，{string} 弦 {fret} 品，移除此标记',{note:fullName(midi),string:p.string,fret:p.fret}));button.append(document.createTextNode(noteName(midi)));const small=document.createElement('small');small.textContent=p.string+':'+p.fret;const cross=document.createElement('b');cross.textContent='×';button.append(small,cross);button.addEventListener('click',()=>{stopPlayback();state.selected=state.selected.filter(q=>q!==p);updateSelection();persist();requestDraw();});list.append(button);});
 }
 function updateChord(){
-  const chord=identifyChord(state.selected.map(p=>midiAt(state.tuning,p.string,p.fret)));
+  const chord=identifyChord(state.selected.map(p=>midiAt(state.tuning,p.string,p.fret)),i18n.language);
   $('chord-symbol').textContent=chord.symbol||'—';$('chord-description').textContent=chord.description;
-  $('chord-alternatives').textContent=chord.alternatives.length?'也可理解为 '+chord.alternatives.join(' / '):'';
+  $('chord-alternatives').textContent=chord.alternatives.length?t('也可理解为 {names}',{names:chord.alternatives.join(' / ')}):'';
   $('chord-caption').hidden=!state.chordNames||chord.kind!=='chord';$('board-chord').textContent=chord.symbol;
 }
 function clearSelection(){stopPlayback();state.selected=[];vibrations=[];pulses=[];updateSelection();persist();requestDraw();}
 function updateTuning(){
-  hover=null;$('canvas-help').textContent='点击品格，听见它的位置。';
-  canvas.setAttribute('aria-label','吉他指板。上下方向键选弦，左右方向键选品，回车选音，空格拨响。');
+  hover=null;$('canvas-help').textContent=t('点击品格，听见它的位置。');
+  canvas.setAttribute('aria-label',t('吉他指板。上下方向键选弦，左右方向键选品，回车选音，空格拨响。'));
   $('tuning').value=state.preset;const title=PRESETS[state.preset]?.name||'CUSTOM';$('board-tuning').textContent=title;$('presentation-tuning').textContent=state.tuning.map(n=>noteName(n)).join(' · ');
-  $('tuning-notes').replaceChildren();state.tuning.forEach((n,i)=>{const button=document.createElement('button');button.className='tuning-note';button.type='button';button.title=(6-i)+' 弦 '+fullName(n)+'，点击'+(state.multi?'选择':'试听')+'空弦';button.setAttribute('aria-label',button.title);button.append(document.createTextNode(noteName(n)));const sup=document.createElement('sup');sup.textContent=octave(n);button.append(sup);button.addEventListener('click',()=>selectPosition({string:6-i,fret:0}));$('tuning-notes').append(button);});
+  $('tuning-notes').replaceChildren();state.tuning.forEach((n,i)=>{const button=document.createElement('button');button.className='tuning-note';button.type='button';button.title=t('{string} 弦 {note}，点击{action}空弦',{string:6-i,note:fullName(n),action:t(state.multi?'选择':'试听')});button.setAttribute('aria-label',button.title);button.append(document.createTextNode(noteName(n)));const sup=document.createElement('sup');sup.textContent=octave(n);button.append(sup);button.addEventListener('click',()=>selectPosition({string:6-i,fret:0}));$('tuning-notes').append(button);});
   updateSelection();requestDraw();
 }
-function changeTuning(notes,preset){stopPlayback();state.tuning=[...notes];state.preset=preset;vibrations=[];pulses=[];lastPlayed=null;$('last-note').textContent='—';$('last-octave').textContent='';$('last-position').textContent='调弦已更新，点一下指板';$('frequency').textContent='— Hz';updateTuning();persist();}
+function changeTuning(notes,preset){stopPlayback();state.tuning=[...notes];state.preset=preset;vibrations=[];pulses=[];lastPlayed=null;$('last-note').textContent='—';$('last-octave').textContent='';$('last-position').textContent=t('调弦已更新，点一下指板');$('frequency').textContent='— Hz';updateTuning();persist();}
 
 function centerOfBoard(){const r=anchor.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};}
 function toLocal(event){const center=centerOfBoard(),u=(event.clientX-center.x-pose.x)/pose.scale,v=(event.clientY-center.y-pose.y)/pose.scale;const point=unprojectPoint(u,v,tiltPose.rx,tiltPose.ry);return {x:point.x+size.width/2,y:point.y+size.height/2};}
@@ -287,18 +295,20 @@ canvas.addEventListener('keydown',event=>{
   if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter'].includes(event.key))return;event.preventDefault();keyboardFocus=true;
   if(event.key==='ArrowUp')keyboard.string=Math.max(1,keyboard.string-1);if(event.key==='ArrowDown')keyboard.string=Math.min(6,keyboard.string+1);if(event.key==='ArrowLeft')keyboard.fret=Math.max(0,keyboard.fret-1);if(event.key==='ArrowRight')keyboard.fret=Math.min(24,keyboard.fret+1);if(event.key==='Enter')selectPosition({...keyboard});
   if(keyboard.fret<(state.range[0]<=1?0:state.range[0])||keyboard.fret>state.range[1]){const width=state.range[1]-state.range[0],start=Math.max(0,Math.min(24-width,keyboard.fret-Math.floor(width/2)));setRange(start,start+width);}
-  canvas.setAttribute('aria-label',keyboard.string+' 弦 '+keyboard.fret+' 品 '+fullName(midiAt(state.tuning,keyboard.string,keyboard.fret))+'。上下选弦，左右选品，回车选音，空格拨响。');requestDraw();
+  canvas.setAttribute('aria-label',t('{string} 弦 {fret} 品 {note}。上下选弦，左右选品，回车选音，空格拨响。',{string:keyboard.string,fret:keyboard.fret,note:fullName(midiAt(state.tuning,keyboard.string,keyboard.fret))}));requestDraw();
 });
 canvas.addEventListener('blur',()=>{keyboardFocus=false;requestDraw();});
 
 $('tuning').addEventListener('change',event=>{const preset=event.target.value;if(preset==='custom'){openTuning();$('tuning').value=state.preset;}else changeTuning(PRESETS[preset].notes,preset);});
 $('customize').addEventListener('click',openTuning);
-function openTuning(){const fields=$('custom-tuning-fields');fields.replaceChildren();state.tuning.forEach((n,i)=>{const label=document.createElement('label');label.textContent=(6-i)+' 弦'+(i===0?' · 低音':i===5?' · 高音':'');const input=document.createElement('input');input.value=fullName(n);input.name='string-'+(6-i);input.required=true;input.maxLength=4;input.setAttribute('aria-label',(6-i)+' 弦音高');label.append(input);fields.append(label);});$('tuning-error').textContent='';$('tuning-dialog').showModal();}
-$('tuning-form').addEventListener('submit',event=>{event.preventDefault();try{const notes=[...$('custom-tuning-fields').querySelectorAll('input')].map(i=>parsePitch(i.value).midi);changeTuning(notes,'custom');$('tuning-dialog').close();toast('自定义调弦已应用。');}catch(error){$('tuning-error').textContent=error.message;}});
+function renderTuningFields(values=state.tuning.map(n=>fullName(n))){const fields=$('custom-tuning-fields');fields.replaceChildren();state.tuning.forEach((n,i)=>{const label=document.createElement('label');label.textContent=t('{string} 弦',{string:6-i})+(i===0?t(' · 低音'):i===5?t(' · 高音'):'');const input=document.createElement('input');input.value=values[i];input.name='string-'+(6-i);input.required=true;input.maxLength=4;input.setAttribute('aria-label',t('{string} 弦音高',{string:6-i}));input.addEventListener('invalid',()=>{if(!input.value.trim())input.setCustomValidity(t('请输入带八度的音名，例如 E2、F#2、Bb3。'));});input.addEventListener('input',()=>input.setCustomValidity(''));label.append(input);fields.append(label);});}
+function openTuning(){renderTuningFields();$('tuning-error').textContent='';$('tuning-dialog').showModal();}
+$('tuning-form').addEventListener('submit',event=>{event.preventDefault();try{const notes=[...$('custom-tuning-fields').querySelectorAll('input')].map(i=>parsePitch(i.value).midi);changeTuning(notes,'custom');$('tuning-dialog').close();toast('自定义调弦已应用。');}catch(error){showError('tuning-error',error.message);}});
 document.querySelectorAll('[data-close]').forEach(button=>button.addEventListener('click',()=>$(button.dataset.close).close()));
-function setInputMode(mode){state.inputMode=mode;const position=mode==='position';$('input-position').classList.toggle('active',position);$('input-note').classList.toggle('active',!position);$('input-position').setAttribute('aria-pressed',position);$('input-note').setAttribute('aria-pressed',!position);$('note-input').value='';$('note-input').placeholder=position?'6:0  5:2  4:2':'C  E  G  或  F#3';$('input-hint').textContent=position?'弦:品，例如 2:3；多个位置用空格分隔。':'在当前镜头内标记音名；加八度可指定音高。';$('input-error').textContent='';}
+function setInputMode(mode){state.inputMode=mode;$('note-input').value='';$('input-error').textContent='';refreshInputMode();}
+function refreshInputMode(){const mode=state.inputMode;const position=mode==='position';$('input-position').classList.toggle('active',position);$('input-note').classList.toggle('active',!position);$('input-position').setAttribute('aria-pressed',position);$('input-note').setAttribute('aria-pressed',!position);$('note-input').placeholder=position?'6:0  5:2  4:2':t('C  E  G  或  F#3');$('input-hint').textContent=t(position?'弦:品，例如 2:3；多个位置用空格分隔。':'在当前镜头内标记音名；加八度可指定音高。');}
 $('input-position').addEventListener('click',()=>setInputMode('position'));$('input-note').addEventListener('click',()=>setInputMode('note'));
-$('note-form').addEventListener('submit',event=>{event.preventDefault();try{const visibleStart=state.range[0]<=1?0:state.range[0],positions=state.inputMode==='position'?parsePositions($('note-input').value):findNotes($('note-input').value,state.tuning,visibleStart,state.range[1]);stopPlayback();state.selected=positions;if(state.inputMode==='position'&&positions.some(p=>p.fret<visibleStart||p.fret>state.range[1])){const max=Math.max(...positions.map(p=>p.fret));setRange(0,max>12?24:12);}updateSelection();persist();$('input-error').textContent='';if(!state.multi)replay();requestDraw();}catch(error){$('input-error').textContent=error.message;}});
+$('note-form').addEventListener('submit',event=>{event.preventDefault();try{const visibleStart=state.range[0]<=1?0:state.range[0],positions=state.inputMode==='position'?parsePositions($('note-input').value):findNotes($('note-input').value,state.tuning,visibleStart,state.range[1]);stopPlayback();state.selected=positions;if(state.inputMode==='position'&&positions.some(p=>p.fret<visibleStart||p.fret>state.range[1])){const max=Math.max(...positions.map(p=>p.fret));setRange(0,max>12?24:12);}updateSelection();persist();$('input-error').textContent='';if(!state.multi)replay();requestDraw();}catch(error){showError('input-error',error.message);}});
 $('apply-range').addEventListener('click',()=>setRange($('range-start').value,$('range-end').value));
 ['range-start','range-end'].forEach(id=>$(id).addEventListener('keydown',event=>{if(event.key==='Enter')setRange($('range-start').value,$('range-end').value);}));
 document.querySelectorAll('[data-range]').forEach(button=>button.addEventListener('click',()=>setRange(...button.dataset.range.split(',').map(Number))));$('reset-camera').addEventListener('click',()=>setRange(0,12));
@@ -307,9 +317,9 @@ $('clear').addEventListener('click',clearSelection);$('replay').addEventListener
 $('arp-tempo').addEventListener('input',()=>{stopPlayback();state.tempo=Number($('arp-tempo').value);$('tempo-value').value=state.tempo+' BPM';persist();});
 $('arp-direction').addEventListener('change',()=>{stopPlayback();state.direction=$('arp-direction').value;persist();});
 $('open-strings').addEventListener('click',()=>{stopPlayback();state.selected=Array.from({length:6},(_,i)=>({string:6-i,fret:0}));if(state.range[0]>1)setRange(0,12);updateSelection();persist();if(!state.multi)replay();requestDraw();});
-const tools=mountTools({document,window,onReveal(){document.body.classList.remove('recording');tiltAim={rx:0,ry:0};requestDraw();}});
+const tools=mountTools({document,window,translate:t,onReveal(){document.body.classList.remove('recording');tiltAim={rx:0,ry:0};requestDraw();}});
 let shortcutStorage;try{shortcutStorage=window.localStorage;}catch{}
-mountShortcuts({document,navigator,storage:shortcutStorage,onOpen:()=>tools.select('shortcuts')});
+mountShortcuts({document,navigator,storage:shortcutStorage,i18n,onOpen:()=>tools.select('shortcuts')});
 function setMode(multi){state.multi=multi;updateButtons();updateTuning();persist();}
 $('multi').addEventListener('click',()=>setMode(true));$('single').addEventListener('click',()=>setMode(false));
 function applyTheme(theme){state.theme=theme;C=COLORS[theme];document.documentElement.dataset.theme=theme;document.querySelector('meta[name="theme-color"]').content=theme==='dark'?'#212121':'#fafafa';updateButtons();persist();requestDraw();}
@@ -329,18 +339,29 @@ document.addEventListener('keydown',event=>{
 
 function renderScenes(){
   $('scene-count').textContent=state.scenes.length;const list=$('scene-list');list.replaceChildren();
-  if(!state.scenes.length){const p=document.createElement('p');p.textContent='还没有保存的场景。音符、调弦和镜头会一起保存。';list.append(p);}
-  state.scenes.forEach(scene=>{const row=document.createElement('div');row.className='saved-scene';const load=document.createElement('button');load.type='button';load.append(document.createTextNode(scene.name));const small=document.createElement('small');small.textContent=scene.tuning.map(n=>noteName(n)).join(' · ')+' / '+scene.range.join('—')+' 品';load.append(small);load.addEventListener('click',()=>{changeTuning(scene.tuning,PRESETS[scene.preset]?scene.preset:'custom');state.selected=validPositions(scene.selected);state.labels=scene.labels!==false;state.multi=scene.uiVersion===2?scene.multi!==false:true;state.chordNames=scene.chordNames!==false;if(Number.isFinite(scene.tempo))state.tempo=clamp(scene.tempo,40,240);if(['up','down','selection'].includes(scene.direction))state.direction=scene.direction;if(validView(scene.view))movePose(scene.view);setRange(...scene.range);updateButtons();updateSelection();persist();$('scene-dialog').close();requestDraw();toast('已载入「'+scene.name+'」。');});const remove=document.createElement('button');remove.className='icon-button';remove.type='button';remove.textContent='×';remove.setAttribute('aria-label','删除场景 '+scene.name);remove.addEventListener('click',()=>{state.scenes=state.scenes.filter(s=>s.id!==scene.id);persist();renderScenes();});row.append(load,remove);list.append(row);});
+  if(!state.scenes.length){const p=document.createElement('p');p.textContent=t('还没有保存的场景。音符、调弦和镜头会一起保存。');list.append(p);}
+  state.scenes.forEach(scene=>{const row=document.createElement('div');row.className='saved-scene';const load=document.createElement('button');load.type='button';load.append(document.createTextNode(scene.name));const small=document.createElement('small');small.textContent=scene.tuning.map(n=>noteName(n)).join(' · ')+t(' / {start}—{end} 品',{start:scene.range[0],end:scene.range[1]});load.append(small);load.addEventListener('click',()=>{changeTuning(scene.tuning,PRESETS[scene.preset]?scene.preset:'custom');state.selected=validPositions(scene.selected);state.labels=scene.labels!==false;state.multi=scene.uiVersion===2?scene.multi!==false:true;state.chordNames=scene.chordNames!==false;if(Number.isFinite(scene.tempo))state.tempo=clamp(scene.tempo,40,240);if(['up','down','selection'].includes(scene.direction))state.direction=scene.direction;if(validView(scene.view))movePose(scene.view);setRange(...scene.range);updateButtons();updateSelection();persist();$('scene-dialog').close();requestDraw();toast('已载入「{name}」。',{name:scene.name});});const remove=document.createElement('button');remove.className='icon-button';remove.type='button';remove.textContent='×';remove.setAttribute('aria-label',t('删除场景 {name}',{name:scene.name}));remove.addEventListener('click',()=>{state.scenes=state.scenes.filter(s=>s.id!==scene.id);persist();renderScenes();});row.append(load,remove);list.append(row);});
 }
 $('save-scene').addEventListener('click',()=>{$('scene-form').hidden=false;renderScenes();$('scene-dialog').showModal();$('scene-name').focus();});
 $('load-scene').addEventListener('click',()=>{$('scene-form').hidden=true;renderScenes();$('scene-dialog').showModal();});
-$('scene-form').addEventListener('submit',event=>{event.preventDefault();const name=$('scene-name').value.trim();if(!name){$('scene-name').setCustomValidity('请输入场景名称。');$('scene-name').reportValidity();return;}state.scenes.unshift({uiVersion:2,view:{...poseAim},id:crypto.randomUUID(),name,tuning:[...state.tuning],preset:state.preset,selected:state.selected.map(p=>({...p})),range:[...state.range],labels:state.labels,multi:state.multi,chordNames:state.chordNames,tempo:state.tempo,direction:state.direction});state.scenes=state.scenes.slice(0,50);persist();renderScenes();$('scene-name').value='';$('scene-dialog').close();toast(storageAvailable?'场景已保存在这个浏览器。':'场景已暂存，浏览器未允许持久保存。');});
+$('scene-form').addEventListener('submit',event=>{event.preventDefault();const name=$('scene-name').value.trim();if(!name){$('scene-name').setCustomValidity(t('请输入场景名称。'));$('scene-name').reportValidity();return;}state.scenes.unshift({uiVersion:2,view:{...poseAim},id:crypto.randomUUID(),name,tuning:[...state.tuning],preset:state.preset,selected:state.selected.map(p=>({...p})),range:[...state.range],labels:state.labels,multi:state.multi,chordNames:state.chordNames,tempo:state.tempo,direction:state.direction});state.scenes=state.scenes.slice(0,50);persist();renderScenes();$('scene-name').value='';$('scene-dialog').close();toast(storageAvailable?'场景已保存在这个浏览器。':'场景已暂存，浏览器未允许持久保存。');});
+$('scene-name').addEventListener('invalid',()=>{if(!$('scene-name').value.trim())$('scene-name').setCustomValidity(t('请输入场景名称。'));});
 $('scene-name').addEventListener('input',()=>$('scene-name').setCustomValidity(''));
 function updateButtons(){
   for(const key of ['labels','multi','tilt','sound','chordNames']){$(key).classList.toggle('active',state[key]);$(key).setAttribute('aria-pressed',state[key]);}
   $('single').classList.toggle('active',!state.multi);$('single').setAttribute('aria-pressed',!state.multi);
-  $('mode-caption').textContent=state.multi?'多音选择':'单音试听';$('mode-help').textContent=state.multi?'点击添加，再点取消。Space 同时弹响，A 播放琶音。':'点击一个音，直接试听；每次保留一个标记。';
+  $('mode-caption').textContent=t(state.multi?'多音选择':'单音试听');$('mode-help').textContent=t(state.multi?'点击添加，再点取消。Space 同时弹响，A 播放琶音。':'点击一个音，直接试听；每次保留一个标记。');
   $('arp-tempo').value=state.tempo;$('tempo-value').value=state.tempo+' BPM';$('arp-direction').value=state.direction;
   for(const theme of ['light','dark']){$('theme-'+theme).classList.toggle('active',state.theme===theme);$('theme-'+theme).setAttribute('aria-pressed',state.theme===theme);}
 }
+i18n.subscribe(()=>{
+  if(typeof location!=='undefined'&&typeof history!=='undefined'){const url=new URL(location.href);if(i18n.preference==='auto')url.searchParams.delete('lang');else url.searchParams.set('lang',i18n.language);history.replaceState(null,'',url);}
+  updateButtons();updateTuning();updateRange();renderScenes();refreshInputMode();tools.refresh();refreshPlaybackLabel();
+  for(const id of ['input-error','tuning-error'])if($(id).dataset.message&&$(id).textContent)$(id).textContent=t($(id).dataset.message);
+  if(lastPlayed)$('last-position').textContent=t('{string} 弦 / {position}',{string:lastPlayed.string,position:lastPlayed.fret===0?t('空弦'):t('{fret} 品',{fret:lastPlayed.fret})});else if($('last-position').textContent)$('last-position').textContent=t('调弦已更新，点一下指板');
+  if($('tuning-dialog').open)renderTuningFields([...$('custom-tuning-fields').querySelectorAll('input')].map(input=>input.value));
+  if(keyboardFocus)canvas.setAttribute('aria-label',t('{string} 弦 {fret} 品 {note}。上下选弦，左右选品，回车选音，空格拨响。',{string:keyboard.string,fret:keyboard.fret,note:fullName(midiAt(state.tuning,keyboard.string,keyboard.fret))}));
+  if(!$('toast').hidden&&lastNotice)notice.show(t(lastNotice.message,lastNotice.values));
+  $('scene-name').setCustomValidity('');
+});
 updateButtons();updateTuning();updateRange();renderScenes();resize();persist();

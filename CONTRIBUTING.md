@@ -1,5 +1,7 @@
 # 贡献指南
 
+**简体中文** · [English](CONTRIBUTING.en.md)
+
 感谢你帮助改进 Guitarfret-note。欢迎报告问题、提出功能建议、补充音乐理论用例、改进文档，以及提交代码。
 
 如果你只想使用指板，直接打开[在线工具](https://gsflaming.github.io/Guitarfret-note/)即可。本页的环境和命令仅供参与开发的人使用。
@@ -74,6 +76,7 @@ npm run dev
 | `dist/view.mjs` | 视图坐标与变换 |
 | `dist/tools.mjs` | 工具展开与焦点导航 |
 | `dist/shortcuts.mjs` | 系统识别、快捷键及提示 |
+| `dist/i18n.mjs` | 中英文文案、语言检测及切换 |
 | `dist/notice.mjs` | 可关闭提示 |
 | `tests/` | 单元与 DOM 测试 |
 | `scripts/` | 开发、构建检查与可选部署 |
@@ -109,9 +112,9 @@ CI 会在 Windows、macOS 和 Linux 上运行测试与构建；这些检查不�
 
 ## 更新说明图片与双语 README
 
-`README.md` 为中文说明，`README.en.md` 为英文说明。修改功能说明时请同步更新两份文档，保留语言切换链接和对应图片说明。
+`README.md` 和 `CONTRIBUTING.md` 为中文，`.en.md` 对应英文版本。修改内容时请同步两种语言，保留切换链接。界面文案集中于 `dist/i18n.mjs`；新增文案应覆盖菜单、错误提示和无障碍标签，切换语言不能清空选音、输入或场景。
 
-功能截图与快捷键图位于 `docs/images/`。需要更新时，安装 Chrome 后运行 `node scripts/capture-docs.mjs`；生成方式与示例见[文档图片说明](docs/images/README.md)。提交前检查图片与当前界面一致，不将示意图写成真实功能截图。
+功能演示 GIF 位于 `docs/images/`。中文文件对应中文界面，`.en.gif` 对应真实英文界面；不通过改图伪造翻译。更新时需要 Chrome、Node.js 24 及装有 Pillow 的 Python，运行 `node scripts/capture-docs.mjs`；详见[演示生成说明](docs/images/README.md)。Python 仅用于把录制帧编码为 GIF，不参与网页运行。
 
 ## 提交 Pull Request
 

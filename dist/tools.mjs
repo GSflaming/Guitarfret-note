@@ -1,12 +1,12 @@
 import {shortcutAction,canHandleShortcut} from './shortcuts.mjs';
 // Tool disclosure is independent of the canvas, note selection and audio.
-export function mountTools({document:doc,window:win,onReveal=()=>{}}){
+export function mountTools({document:doc,window:win,onReveal=()=>{},translate:t=value=>value}){
   const get=id=>doc.getElementById(id),launcher=get('tools-toggle'),menu=get('tool-dock'),panel=get('controls');
   const tools=[...menu.querySelectorAll('[data-tool]')];
   let activeTool='selection';
   const isOpen=()=>!menu.hidden||!panel.hidden;
   function sync(){
-    const open=isOpen();launcher.setAttribute('aria-expanded',String(open));launcher.setAttribute('aria-label',open?'收起指板工具':'展开指板工具');launcher.title=open?'收起工具 · C':'展开工具 · C';get('tools-toggle-label').textContent=open?'收起':'工具';
+    const open=isOpen();launcher.setAttribute('aria-expanded',String(open));launcher.setAttribute('aria-label',t(open?'收起指板工具':'展开指板工具'));launcher.title=t(open?'收起工具 · C':'展开工具 · C');get('tools-toggle-label').textContent=t(open?'收起':'工具');
     tools.forEach(button=>button.setAttribute('aria-expanded',String(!panel.hidden&&button.dataset.tool===activeTool)));
   }
   function close(focus=false){menu.hidden=true;panel.hidden=true;sync();if(focus)launcher.focus({preventScroll:true});}
@@ -17,7 +17,7 @@ export function mountTools({document:doc,window:win,onReveal=()=>{}}){
     panel.style.left=Math.max(16,Math.min(right-width,win.innerWidth-width-16))+'px';
   }
   function select(tool){
-    const button=tools.find(b=>b.dataset.tool===tool);if(!button)throw new Error('未知的工具。');
+    const button=tools.find(b=>b.dataset.tool===tool);if(!button)throw new Error(t('未知的工具。'));
     activeTool=tool;menu.hidden=true;panel.hidden=false;
     doc.querySelectorAll('[data-panel]').forEach(section=>section.hidden=section.dataset.panel!==tool);
     get('tool-title').textContent=button.querySelector('span').textContent;
@@ -46,6 +46,7 @@ export function mountTools({document:doc,window:win,onReveal=()=>{}}){
     if(shortcutAction(event)==='tools'){event.preventDefault();toggle(true);}
   });
   win.addEventListener('resize',()=>{if(!panel.hidden)positionPanel();});
+  function refresh(){sync();if(!panel.hidden)get('tool-title').textContent=tools.find(b=>b.dataset.tool===activeTool).querySelector('span').textContent;}
   close();
-  return Object.freeze({open,close,toggle,select,isOpen});
+  return Object.freeze({open,close,toggle,select,isOpen,refresh});
 }

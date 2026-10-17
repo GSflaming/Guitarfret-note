@@ -1,3 +1,4 @@
+import {translate} from './i18n.mjs';
 import {noteName} from './music.mjs';
 
 // Match pitch classes exactly; octave doublings do not change a chord's name.
@@ -27,11 +28,12 @@ const TYPES = [
 const pc=n=>(n%12+12)%12;
 const same=(a,b)=>a.length===b.length&&a.every(n=>b.includes(n));
 
-export function identifyChord(midis){
+export function identifyChord(midis,language='zh'){
+  const t=(text,values)=>translate(text,language,values);
   const notes=midis.filter(Number.isFinite).sort((a,b)=>a-b);
-  if(!notes.length)return {kind:'empty',symbol:'',description:'选择音符后自动识别和弦。',alternatives:[],notes:[]};
+  if(!notes.length)return {kind:'empty',symbol:'',description:t('选择音符后自动识别和弦。'),alternatives:[],notes:[]};
   const classes=[...new Set(notes.map(pc))],bass=pc(notes[0]),names=classes.map(n=>noteName(n));
-  if(classes.length===1)return {kind:'single',symbol:names[0],description:'单音',alternatives:[],notes:names};
+  if(classes.length===1)return {kind:'single',symbol:names[0],description:t('单音'),alternatives:[],notes:names};
   const matches=[];
   for(const root of classes){
     const intervals=classes.map(n=>pc(n-root));
@@ -42,10 +44,10 @@ export function identifyChord(midis){
       const symbol=rootName+suffix+(omittedFifth?'(no5)':'')+(bass===root?'':'/'+bassName);
       // Prefer complete voicings and a root in the bass; retain other valid readings.
       const score=(omittedFifth?30:0)+(bass===root?0:8)+index*.01;
-      matches.push({symbol,description:rootName+' '+description+(omittedFifth?' · 省略五音':'')+(bass===root?'':' · '+bassName+' 低音'),score});
+      matches.push({symbol,description:rootName+' '+t(description)+(omittedFifth?t(' · 省略五音'):'')+(bass===root?'':t(' · {bass} 低音',{bass:bassName})),score});
     });
   }
   matches.sort((a,b)=>a.score-b.score);
-  if(!matches.length)return {kind:'collection',symbol:names.join(' · '),description:classes.length===2?'双音；尚不足以确定和弦。':'音集合；未匹配到常见和弦。',alternatives:[],notes:names};
+  if(!matches.length)return {kind:'collection',symbol:names.join(' · '),description:t(classes.length===2?'双音；尚不足以确定和弦。':'音集合；未匹配到常见和弦。'),alternatives:[],notes:names};
   return {kind:'chord',symbol:matches[0].symbol,description:matches[0].description,alternatives:[...new Set(matches.slice(1).map(m=>m.symbol))].slice(0,3),notes:names};
 }
